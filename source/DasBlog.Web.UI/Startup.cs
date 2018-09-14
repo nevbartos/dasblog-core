@@ -3,11 +3,7 @@ using System.IO;
 using System.Security.Principal;
 using System.Threading;
 using System.Threading.Tasks;
-using DasBlog.Core.Configuration;
-using DasBlog.Managers;
-using DasBlog.Managers.Interfaces;
-using DasBlog.Web.Identity;
-using DasBlog.Web.Settings;
+
 using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
@@ -16,17 +12,25 @@ using Microsoft.AspNetCore.Mvc.Razor;
 using Microsoft.AspNetCore.Rewrite;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.FileProviders;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Options;
+using IHostingEnvironment = Microsoft.AspNetCore.Hosting.IHostingEnvironment;
+
 using AutoMapper;
-using DasBlog.Web.Mappers;
+
 using DasBlog.Core;
 using DasBlog.Core.Common;
+using DasBlog.Core.Configuration;
 using DasBlog.Core.Services;
 using DasBlog.Core.Services.Interfaces;
-using Microsoft.Extensions.FileProviders;
+using DasBlog.Managers;
+using DasBlog.Managers.Interfaces;
+using DasBlog.Web.Identity;
+using DasBlog.Web.Mappers;
+using DasBlog.Web.Services;
+using DasBlog.Web.Settings;
 using DasBlog.Web.TagHelpers.RichEdit;
-using Microsoft.Extensions.Options;
-using Microsoft.Extensions.Hosting;
-using IHostingEnvironment = Microsoft.AspNetCore.Hosting.IHostingEnvironment;
 
 namespace DasBlog.Web
 {
@@ -59,6 +63,9 @@ namespace DasBlog.Web
 			  => options.Path = Path.Combine(GetDataRoot(hostingEnvironment), SITESECURITYCONFIG));
 			services.Configure<ActivityRepoOptions>(options
 			  => options.Path = Path.Combine(GetDataRoot(hostingEnvironment), Constants.LogDirectory));
+
+			// Backgrund services
+			services.AddHostedService<ReportMailerService>();
 
 			// Add identity types
 			services
@@ -116,7 +123,9 @@ namespace DasBlog.Web
 				.AddTransient<IRoleStore<DasBlogRole>, DasBlogUserRoleStore>()
 				.AddTransient<IPrincipal>(provider => provider.GetService<IHttpContextAccessor>().HttpContext.User)
 				.AddTransient<ISiteRepairer, SiteRepairer>()
+				.AddTransient<IEmailService, EmailService>()
 				;
+
 			services.AddScoped<IRichEditBuilder>(SelectRichEditor);
 
 			services
