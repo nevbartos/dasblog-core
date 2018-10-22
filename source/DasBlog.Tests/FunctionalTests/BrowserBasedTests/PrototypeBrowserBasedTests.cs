@@ -1,24 +1,24 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using DasBlog.Tests.Automation.Dom;
 using DasBlog.Tests.Automation.Selenium;
-using DasBlog.Tests.Automation.Selenium.Interfaces;
-using DasBlog.Tests.FunctionalTests.IntegrationTests.Support;
-using DasBlog.Tests.SmokeTest;
+using DasBlog.Tests.FunctionalTests.Common;
 using DasBlog.Tests.Support;
 using DasBlog.Tests.Support.Interfaces;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Xunit;
 using Microsoft.Extensions.Options;
+using Microsoft.IdentityModel.Xml;
+using Xunit;
 using Xunit.Abstractions;
+
 /*
- * THERE IS NO logging to the console - you have to run in the debugger to see log output
+ * THERE IS NO logging to the console - in the debugger the log appears in the detail of the test results
+ * when run from the console the log appears in a log file assuming you provide the correct command line
  * dotnet xunit cli is required to get console output
  * If I do "dotnet xunit -diagnostics" it barfs with a reference to a missing Microsoft.Extensions.Options
  */
-namespace DasBlog.Tests.FunctionalTests
+namespace DasBlog.Tests.FunctionalTests.BrowserBasedTests
 {
 	public class BrowserOptionsAccessor : IOptions<BrowserOptions>
 	{
@@ -30,22 +30,51 @@ namespace DasBlog.Tests.FunctionalTests
 	}
 	public class PrototypeBrowserBasedTests : IClassFixture<BrowserTestPlatform>
 	{
+
 		private BrowserTestPlatform platform;
+		private ITestOutputHelper testOutputHelper;
+		private ILogger<PrototypeBrowserBasedTests> logger;
 		public PrototypeBrowserBasedTests(ITestOutputHelper testOutputHelper, BrowserTestPlatform browserTestPlatform)
 		{
+			testOutputHelper.WriteLine("hello from browser constructor");
+					// the above message and others like it appear in the detail pane of Rider's test runner for
+					// Running a successful test
+					// Debugging a successful test
+					// Running a failed test
+					// Debugging a failed test
+					// logger under for Run and Debug
+			// I want to get hold of the xunit test results when running from the command line.
+			// "dotnet test" isn't providing them as far as I can see from my limited investigations
+			// Even after specifying RuntimeFramework as 2.1.4 in the csproj I got
+			// "dotnet xunit" should be more fruitful but fails with the following issue:
+			//   Could not load file or assembly 'Microsoft.Extensions.Options, Version=2.1.0.0,
+			// There is a nuget package for M.E.O 2.1.1 but the install fails and is rolled back
+			// There are no other v2 nuget packages except a preview 2.2.
+			// "dotnet xunit" seems to be a no-go - did not investigate whether it solved
+			// the original problem of locating and using test results.
+			// 
+			// It turns out that the following is not a bad start:
+			// "dotnet test --logger trx;LogfileName=test_results.xml --results-directory ./test_results"
+			//			test_results.xml will appear in <proj>/source/DasBlog.Tests/FunctionalTests/test_results
 			browserTestPlatform.CompleteSetup(testOutputHelper);
 			this.platform = browserTestPlatform;
-			
+			LoggerValidator.Validate(platform.ServiceProvider);
+			this.testOutputHelper = testOutputHelper;
+			this.logger = platform.ServiceProvider.GetService<ILoggerFactory>().CreateLogger<PrototypeBrowserBasedTests>();
 		}
+
 		[Fact]
+		public void Test1()
+		{
+			Assert.True(true);
+		}
+		[Fact(Skip="")]
 		public void MinimalTest()
 		{
+//			Thread.Sleep(5000);
 			try
 			{
-				var logger = platform.ServiceProvider.GetService<ILoggerFactory>().CreateLogger<PrototypeBrowserBasedTests>();
 				logger.LogError("logging starts here");
-				platform.Runner.RunDasBlog();
-				platform.Browser.Init();
 				List<TestStep> testSteps = new List<TestStep>
 				{
 					new TestStep(() => platform.Pages.Login.Goto()),
@@ -63,71 +92,43 @@ namespace DasBlog.Tests.FunctionalTests
 			}
 			catch (Exception e)
 			{
-				Console.WriteLine(e);
+				_ = e;
 				throw;
 			}
 			finally
 			{
 			}
 		}
-
-	}
-
-	public class BrowserTestPlatform : IDisposable
-	{
-		public IWebServerRunner Runner { get; private set; }
-		public IServiceProvider ServiceProvider { get; private set; }
-		public IBrowser Browser { get; private set; }
-		public IPublisher Publisher { get; private set; }
-		public ITestExecutor TestExecutor { get; private set; }
-		public Pages Pages { get; private set; }
-		
-		public BrowserTestPlatform()
+		[Fact(Skip="")]
+		public void MinimalTest2()
 		{
-			ServiceProvider = InjectDependencies();
-			Runner = ServiceProvider.GetService<IWebServerRunner>();
-			Browser = ServiceProvider.GetService<IBrowser>();
-			TestExecutor = ServiceProvider.GetService<ITestExecutor>();
-			Publisher = ServiceProvider.GetService<IPublisher>();
-			ServiceProvider
-				.GetService<ILoggerFactory>()
-				.AddConsole(LogLevel.Debug)
-				.AddDebug(LogLevel.Debug);
-			Pages = new Pages(Browser);
-			
-		}
-
-		/// <summary>
-		/// completes the platform setup by activating the logger
-		/// TODO look into how the test output helper is supposed to be injected into class fixture
-		/// </summary>
-		/// <param name="testOutputHelper">did not get injected</param>
-		public void CompleteSetup(ITestOutputHelper testOutputHelper)
-		{
-			var loggerFactory = ServiceProvider.GetService<ILoggerFactory>();
-			loggerFactory.AddProvider(new XunitLoggerProvider(testOutputHelper));
-		}
-		private IServiceProvider InjectDependencies()
-		{
-			var services = new ServiceCollection();
-			services.Configure<BrowserOptions>(options =>
+			Thread.Sleep(5000);
+			try
 			{
-				options.HomeUrl = "http://localhost:5000/";
-				options.Driver = "firefox";
-			});
-			services.AddLogging();
-			services.AddSingleton<IWebServerRunner, WebServerRunner>();
-//			services.AddTransient<App>();
-			services.AddSingleton<IBrowser, Browser>();
-			services.AddSingleton<IPublisher, Publisher>();
-			services.AddSingleton<ITestExecutor, TestExecutor>();
-			return services.BuildServiceProvider();
-		}
-
-		public void Dispose()
-		{
-			Runner?.Kill();
-			Browser?.Dispose();
+				logger.LogError("logging starts here");
+				List<TestStep> testSteps = new List<TestStep>
+				{
+					new TestStep(() => platform.Pages.Login.Goto()),
+					new TestStep(() => platform.Pages.Login.IsDisplayed()),
+					new TestStep(() => platform.Pages.Login.LoginButton != null),
+					new TestStep(() => platform.Pages.Login.LoginButton.Click()),
+					new TestStep(() =>
+						platform.Pages.Login.PasswordValidation.Text.ToLower().Contains("the password field is required")),
+					new TestStep(() => platform.Pages.Login.IsDisplayed())
+				};
+				var results = new TestResults();
+				platform.TestExecutor.Execute(testSteps, results);
+				platform.Publisher.Publish(results.Results);
+				Assert.True(results.TestPassed);
+			}
+			catch (Exception e)
+			{
+				_ = e;
+				throw;
+			}
+			finally
+			{
+			}
 		}
 	}
 

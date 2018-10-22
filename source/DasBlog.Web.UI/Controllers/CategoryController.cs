@@ -5,6 +5,8 @@ using DasBlog.Web.Models.BlogViewModels;
 using DasBlog.Web.Settings;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using newtelligence.DasBlog.Runtime;
+using System.Linq;
 
 namespace DasBlog.Web.Controllers
 {
@@ -14,6 +16,7 @@ namespace DasBlog.Web.Controllers
 		private readonly IHttpContextAccessor httpContextAccessor;
 		private readonly IDasBlogSettings dasBlogSettings;
 		private readonly IMapper mapper;
+		private const string CATEGORY = "Category";
 
 		public CategoryController(ICategoryManager categoryManager, IDasBlogSettings settings, IHttpContextAccessor httpContextAccessor, IMapper mapper)
 			: base(settings)
@@ -44,7 +47,15 @@ namespace DasBlog.Web.Controllers
 				? categoryManager.GetEntries(category, httpContextAccessor.HttpContext.Request.Headers["Accept-Language"])
 				: categoryManager.GetEntries();
 
-			var viewModel = CategoryListViewModel.Create(entries);
+			var entryList = new EntryCollection();
+			foreach (var entry in entries?.ToList()?.Where(e => e.IsPublic))
+			{
+				entryList.Add(entry);
+			}
+
+			var viewModel = CategoryListViewModel.Create(entryList, category);
+
+			DefaultPage(CATEGORY);
 			return viewModel;
 		}
 	}
